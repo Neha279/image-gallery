@@ -1,0 +1,30 @@
+._splist 
+{ 
+ position: absolute;
+ text-align: center;
+ float: left; 
+ vertical-align: middle;
+ }
+ 
+ ._spimge { 
+ display:inline-block; 
+ vertical-align:middle;
+ }
+ 
+ ._spimghide { 
+ display:none;
+ visibility:hidden;
+ }
+ 
+ #img_in 
+ {
+ float:left;
+ display: inline-block;
+ vertical-align:middle;
+ }
+ 
+ ._spalbum
+ {
+   overflow:hidden;
+   vertical-align:middle;
+ }
