@@ -1,0 +1,1045 @@
+/**
+Author : Neha k
+Date : July 2012
+**/
+/**
+{id:'', wd: , ht: ,imgsrc: , tooltip: , imgclass:'' ,tipcls:'' , tippos:1, prvneximg:new Array('images/arrow_right.png','images/arrow_left.png'),prevnextimgwd:20 }
+
+id : div id 
+wd : set wd in px  //defualt 200 x 200
+ht : set ht in px 
+imgsrc : img src url array 
+tooltip : text array 
+imgclas : img tag css class
+tipcls: tooltip css class 
+tippos: tooltip position [1 top 2 bottom]
+prvneximg: array of left/rt arrow image 
+prevnextimgwd: arrow wd //default is 20
+
+**/
+
+var MOVE = {
+  NEXT : 1, //name: "Next", code: "R"},  //right
+  PREV:  2 // name: "Prev", code: "L"}    //Left
+};
+
+var POS = {
+  TOP : 1 , // name: "Top", code: "T"},  
+  MIDDLE: 2, //name: "Middle", code: "M"} ,
+  BOTTOM: 3 //, name: "Bottom", code: "B"}  
+};
+
+var MODE = {
+  POTRAIT : 1, //potrait
+  LANDSCAPE :2 //landsacpe
+  };
+  
+var styleObj = function ()
+ {
+     var style = null;
+	 var styleObj ={};
+	 var buffer  = "";
+	function  init()
+	 {
+	   if(style == null)
+	   {    style = document.createElement('style');
+			style.type = 'text/css';	
+		}
+	 }
+	 styleObj.createStyle = function ()
+	 {
+	    init();
+	 }
+	 styleObj.appendStyle = function (cssdata)
+	 {
+	   if(style != null)
+		buffer = buffer  + cssdata+ '\n' ;	
+	 }
+	 styleObj.loadStyle = function ()
+	 {
+		if(style != null)
+		{
+		    //style.textContent = buffer;
+			 var rules = document.createTextNode(buffer);
+			if(style.styleSheet)
+				style.styleSheet.cssText = rules.nodeValue;
+			else if(style.textContent)
+				style.textContent = buffer;
+			else if(style.nodeValue)
+				style.nodeValue = buffer;
+			else style.appendChild(rules);
+			document.getElementsByTagName('head')[0].appendChild(style);
+		}
+		style = null;
+		buffer = "";
+	 }
+	 init();
+	 return styleObj;
+
+ }
+var spImgGallery = function(options)
+{
+   var imgObj = {};  
+   var keepX = null;
+   var zoomX=null , zoomY=null ;
+   var isSliding = false;
+   var isZoomOut = false;
+   var countdistance = 0;
+   var currentmove = 0;
+   var timer = null;
+   var timer_out = false;
+   var loadimg = 0;
+   var css  = null;
+   
+    var isOrient = true;
+   var defaults  =  {   id:'_spalbum',wd:100, ht:0, speed:10 ,//milisec
+						distance : 10 ,
+						nodeid :'_spnode-',						
+						imgsrc: new Array(), 
+						imageid :'_spimg-',
+						imgclass:'',
+						imgfittoalbum: false,
+						//text tootip objects
+						tooltip:new Array(),						
+						tooltipclass:'',
+						tooltippos:POS.TOP,   // 1 top 3 is bottom
+						tooltipid : '_sptip',
+						start:0,
+						prevtext : 'prev',
+						previmg:'images/leftarrow.png',
+						nexttext: 'next',
+						nextimg : 'images/rightarrow.png',
+						prevnextimgwd:41,	//default 20 px		
+						prevnextpos:POS.MIDDLE,	   //1 is top 2 is center 3 in bottom	
+						preloadsupport : true,
+						defualtloadimg : 'images/load.gif',
+						maxpreload : 4,
+						previd:'_sp_prev', nextid:'_sp_next',
+						//zoomin:'_spzi',	zoomout: '_spzo' //No support rt now...	
+						zooming : 'true',
+						zoomsize: 40, // 
+						zoomid :'_spzo',
+						zoomimg : 'images/zoom_strip.png', //stripe of image with zoomin and out
+						zoomclipx : 101,  //thats default image wd clip
+						zoomclipy : 41  // image ht clip
+					};
+	  function setAttribute(val1, val2){ return (val1 != undefined) ? val1: val2; }	 
+	 
+	  function preloadImage()
+	  {				
+		if(imgObj.preloadsupport )
+		 {	  
+			 var loadimgsrc =  new Array()
+			 
+			 for(var i=imgObj.start; i<imgObj.imgurl.length; i++)
+			 {
+			    var cls = imgObj.imgclass+  " _spimge _spimghide"
+				loadimgsrc[i] = (imgObj.imgfittoalbum )? new Image(imgObj.wd, imgObj.ht):new Image();
+				loadimgsrc[i].onload = imageload; // addEventListener('load' , imageload, false);				
+				
+				if(i<loadimg)
+					loadimgsrc[i].src = imgObj.imgurl[i];
+				else
+					loadimgsrc[i].src = "";//imgObj.defualtloadimg;
+				
+				 if(!imgObj.imgfittoalbum )				
+					loadimgsrc[i].style.width = "inherit";
+				loadimgsrc[i].id = imgObj.imageid + i;
+				loadimgsrc[i].className = cls;
+			 }	
+			 return loadimgsrc
+		 }
+		 else
+		 {  
+		    loadimg = imgObj.imgurl.length ; 
+			return imgObj.imgurl;  
+		 }
+	  }	   
+	   
+	   function calcSlideProperty()
+	   {
+	          var reminder = imgObj.wd % imgObj.speed;
+			 if(reminder >0)
+			    imgObj.wd = imgObj.wd-reminder;			
+			imgObj.distance =  Math.abs(imgObj.wd/imgObj.speed);
+			
+			
+	   }
+	   imgObj.handleOrientation = function (mode)
+		{
+		   if(mode == MODE.LANDSCAPE)
+		   {
+			 imgObj.wd = 480;//= window.innerWidth ;			 
+		   }
+		   else if(mode == MODE.POTRAIT)
+		   {
+			 imgObj.wd = 320;//window.innerWidth ;			 
+		   }	   
+		   calcSlideProperty();
+		}
+		
+		imgObj.orientTest = function ()
+		{		  
+		   imgObj.handleOrientation(isOrient?MODE.POTRAIT:MODE.LANDSCAPE);
+		   isOrient = isOrient?false:true;
+		}
+	   function init()
+		{
+				//album div prop
+				imgObj.id = setAttribute(options.id , defaults.id);				
+				imgObj.wd  = setAttribute(options.wd , defaults.wd);				
+				imgObj.ht  = setAttribute(options.ht , defaults.ht);
+				imgObj.speed = setAttribute(options.speed,defaults.speed);					
+				imgObj.start = setAttribute(options.start,defaults.start);
+				imgObj.imgfittoalbum = setAttribute(options.imgfittoalbum , defaults.imgfittoalbum);
+				if(imgObj.wd == "100")
+				{
+				   imgObj.wd = window.innerWidth;
+				}
+				calcSlideProperty();
+				
+				imgObj.imageid = setAttribute(options.imageid, defaults.imageid);
+				imgObj.imgclass = setAttribute(options.imgclass , defaults.imgclass);	
+				imgObj.imgurl = setAttribute(options.imgsrc, new Array());
+				imgObj.preloadsupport = setAttribute(options.preloadsupport , defaults.preloadsupport);
+				imgObj.maxpreload = setAttribute(options.maxpreload, defaults.maxpreload);	
+				imgObj.defualtloadimg = setAttribute(options.defualtloadimg , defaults.defualtloadimg);
+                loadimg  = imgObj.maxpreload -1;	 // it starts from 0 array index.			
+				imgObj.imgsrc = preloadImage();
+				//setAttribute(options.imgsrc, defaults.imgsrc);
+				imgObj.nodeid = setAttribute(options.nodeid, defaults.nodeid);
+				
+				setAttribute(options,defaults);
+				
+				//prev-next arrow prop
+				imgObj.previmg  = setAttribute(options.previmg, defaults.previmg);
+				imgObj.prevtext = setAttribute(options.prevtext , defaults.prevtext );				
+				imgObj.previd = setAttribute(options.previd , defaults.previd );	
+				imgObj.prevnextimgwd = setAttribute(options.prevnextimgwd , defaults.prevnextimgwd );	
+				imgObj.prevnextpos = setAttribute(options.prevnextpos, defaults.prevnextpos);
+				imgObj.nextimg  = setAttribute(options.nextimg, defaults.nextimg);
+				imgObj.nexttext = setAttribute(options.nexttext , defaults.nexttext );	
+				imgObj.nextid = setAttribute(options.nextid , defaults.nextid );	
+					
+				//Zoom tap .. 
+				imgObj.zooming= setAttribute(options.zooming , defaults.zooming );
+				imgObj.zoomid = setAttribute(options.zoomid , defaults.zoomid );
+				imgObj.zoomsize	=setAttribute(options.zoomsize , defaults.zoomsize  );
+				imgObj.zoomimg = setAttribute(options.zoomimg , defaults.zoomimg);
+				imgObj.zoomclipx =setAttribute(options.zoomclipx , defaults.zoomclipx);
+				imgObj.zoomclipy =setAttribute(options.zoomclipy, defaults.zoomclipy);
+								
+				//tooltip prop		
+				imgObj.tooltip = setAttribute(options.tooltip , defaults.tooltip);
+				imgObj.tooltipid = setAttribute(options.tooltipid , defaults.tooltipid);				 
+				imgObj.tooltipclass = setAttribute(options.tooltipclass, defaults.tooltipclass);
+				imgObj.tooltippos = setAttribute(options.tooltippos, defaults.tooltippos);
+				
+				//event handling prop.
+				imgObj.totalimg = imgObj.imgurl.length;
+				imgObj.total = (imgObj.imgurl.length>1)?(imgObj.imgurl.length -1):0;
+				imgObj.current = imgObj.start;			
+				   			
+				//console.log("imgObj.distance  = " +imgObj.distance  + ' '+  reminder);	
+                 css = styleObj();
+				 //define css class..
+				 
+				var liclass = "._spload {  background-image: URL(' "+ imgObj.defualtloadimg + "'); background-repeat: no-repeat;"
+					+ "   background-position: center; } \n" 
+					//+"._splist { position: absolute; text-align: center; float: left; vertical-align: middle; } "	
+				 ;
+				css.appendStyle(liclass);						
+					
+				//var imghidden = "._spimghide { display:none; visibility:hidden;} ";	
+				//css.appendStyle(imghidden);				
+				
+				var zoom = " ._spzoomout {" + getBGImgCss(POS.MIDDLE, imgObj.zoomimg,0, 0) + "} \n"				
+				+ "._spzoomin {" + getBGImgCss(POS.MIDDLE, imgObj.zoomimg,0, -imgObj.zoomclipx) + "}";
+				//console.log(zoom);
+				css.appendStyle(zoom);
+				
+				
+				var tablereset = "#"+ imgObj.id +" li,ul,table,td,tbody,th,tr,div {margin: 0;	padding: 0;	border: 0;font-size: 100%; font: inherit;vertical-align: middle;" +
+				"border-collapse: collapse;border-spacing: 0; } " 
+				//+	"._spimge { display:inline-block; vertical-align:middle;}"
+				;
+				css.appendStyle(tablereset);
+				
+				css.loadStyle();
+				
+				//todo : add the oirent
+				 // setOrientation(imgObj.handleOrientation);
+								
+				
+		}
+		init();		 
+		function generateGallery()
+		{
+			var objim  = document.getElementById(imgObj.id);
+			if(objim.innerHTML.length >0) //if its call again again generategallery.
+			  {objim.innerHTML =""; init();}
+			
+			//start table.
+			var table = gettable("100%");
+			
+           	objim.setAttribute("style" ,  "width:" + imgObj.wd );
+			//add the tr for text @ top	
+			if((imgObj.tooltippos==POS.TOP || imgObj.tooltippos==POS.MIDDLE) 
+				&& imgObj.tooltip.length>(imgObj.start+1))	
+			  objim.appendChild(addTooltipRow(imgObj.tooltipid , imgObj.tooltipclass, imgObj.tooltip[imgObj.current]));
+			
+			//get the row and album div	
+			var maintr = gettr();
+		    var maintd = gettd('','100%', '100%','center');
+			
+			var almdiv = getdiv(imgObj.id+'_in','width:'+imgObj.wd + 'px;'+((imgObj.ht==0)?("height:"+imgObj.wd +"px;"):getHtcss(imgObj.ht)) 
+			 , '_spalbum '+imgObj.imgclass); //line-height:'+ imgObj.wd + 'px;
+			//prev-next container 
+			var prevdiv = getMoveButton(imgObj , MOVE.PREV);
+			var nextdiv = getMoveButton(imgObj , MOVE.NEXT);
+			//image container
+			//var indiv = getdiv('img_in','float:left;display: inline-block;vertical-align:middle;height:'+ imgObj.wd + 'px;');
+			var indiv = getdiv('img_in','height:'+ imgObj.wd + 'px;');
+			
+			//line-height:'+ imgObj.wd + 'px;
+			//list..
+			var ul = getul(imgObj.ht, imgObj.wd);
+			var imgstyle =(imgObj.imgfittoalbum)? ("width:" +imgObj.wd + "px;" + getHtcss(imgObj.ht)) :"width:inherit";
+			for(var i =0;i<imgObj.totalimg;i++)
+			 {				
+				var lf = (i* imgObj.wd);				//"line-height: " + imgObj.wd + 'px;'
+				var li = getLiNode(imgObj.nodeid + i, imgObj.wd, imgObj.ht , lf, slideHandler ,"top:0px;", "_splist _spload");
+					
+				var image = (imgObj.preloadsupport)?imgObj.imgsrc[i]:getImageNode(imgObj.imageid+ i, imgObj.imgsrc[i], imgstyle);
+				
+				li.appendChild(image);
+				//var span =  document.createElement("span");
+				//li.appendChild(span);
+				ul.appendChild(li);
+			 }		
+             console.log("li done");			 
+			 indiv.appendChild(ul);
+			 
+			 //add list prev-next to album div.
+			 almdiv.appendChild(prevdiv);
+			 almdiv.appendChild(indiv);
+			 almdiv.appendChild(nextdiv);
+			// var span =  document.createElement("span");
+			 //almdiv.appendChild(span);
+			 //add td-tr to table
+			 maintd.appendChild(almdiv);			  
+			 maintr.appendChild(maintd);
+			 table.appendChild(maintr);
+			 
+			//add table to album div
+		    //objim.appendChild(almdiv); 
+			objim.appendChild(table); 
+			
+			 // add the tr for text @ bottom
+		   if(imgObj.tooltippos==POS.BOTTOM && imgObj.tooltip.length>(imgObj.start+1))			 
+				objim.appendChild(addTooltipRow(imgObj.tooltipid , imgObj.tooltipclass, imgObj.tooltip[imgObj.current]));
+		
+         if(imgObj.zooming)			 
+			{
+			   var zoomdiv = addZoomRow(imgObj.zoomid, imgObj.zoomimg,imgObj.zoomclipx, imgObj.zoomclipy , "_spzoomout" );
+			   objim.appendChild(zoomdiv);	
+			}			   
+			verticalAlign();	
+			hideAndshow();			
+   }
+   
+   function lazyloadImages()
+   {
+      //console.log('load:' + loadimg  + ' tot:' + imgObj.total + ' cur:'+ imgObj.current + ' max:'+imgObj.maxpreload);
+      if(imgObj.total >=loadimg)
+		{
+		     if((loadimg - imgObj.current) < imgObj.maxpreload)
+			 {
+			   for(var k =0; k<imgObj.maxpreload; k++)
+			   { 
+					if(loadimg > imgObj.total)
+						return;
+					var img = document.getElementById(imgObj.imageid+loadimg);
+					img.setAttribute("src",imgObj.imgurl[loadimg]);					
+					loadimg++;	
+			   }
+			 }
+			 if(loadimg == imgObj.total)
+			{
+			   removeAllLiClass(imgObj.total, imgObj.nodeid, "_spload");
+			}			 
+		}
+		
+		//console.log('load:' + loadimg  + ' tot:' + imgObj.total)		
+   }
+   
+ 
+//************* Public functions ********
+   imgObj.load = function()  {	 generateGallery();  loadZoomplugin();}      
+   imgObj.slideprev = function (event)
+	{	
+		if(isZoomOut) return;
+		var image = (event.target) ? event.target : event.srcElement;	
+		//console.log(image.id +' '+ imgObj.current);		
+		var curid = imgObj.nodeid + imgObj.current;	
+		checkIsSliding();
+		if(imgObj.current >0)
+		{
+			imgObj.current--;			
+			var prvid = imgObj.nodeid + imgObj.current;
+			currentmove =MOVE.PREV;			 
+			moveTheShow(curid,prvid,imgObj.wd,imgObj.distance, imgObj.speed,MOVE.PREV);
+		}
+		hideAndshow();		
+	}	
+	
+	function hideAndshow()
+	{
+	   if(isZoomOut)
+	   {
+		 document.getElementById(imgObj.nextid).style.display  = "none";
+		 document.getElementById(imgObj.previd).style.display  = "none";
+	   }
+	   else
+	   {
+		 document.getElementById(imgObj.nextid).style.display  = "inline-block";
+		 document.getElementById(imgObj.previd).style.display  = "inline-block";
+		
+	    if(imgObj.current == 0 )
+			document.getElementById(imgObj.previd).style.display = "none";
+		if(	imgObj.total ==imgObj.current )
+			document.getElementById(imgObj.nextid).style.display = "none";	
+		}			
+	}
+
+	imgObj.slidenext = function (event)
+	{
+		if(isZoomOut) return;
+	    var image = (event.target) ? event.target : event.srcElement;	
+		//console.log(image.id +' '+ imgObj.current + ' ' +imgObj.total);
+		var curid = imgObj.nodeid + imgObj.current;	 
+		checkIsSliding();
+		if( imgObj.total > imgObj.current )
+		{
+			imgObj.current++;
+			var nexid = imgObj.nodeid + imgObj.current;	
+            currentmove =MOVE.NEXT;					
+			moveTheShow(curid,nexid,imgObj.wd,imgObj.distance,imgObj.speed, MOVE.NEXT);
+		}        
+		hideAndshow();		
+	}
+	
+	imgObj.updateTooltip = function ()
+	{
+	    console.log(imgObj.current + ' tooltip: ' + imgObj.tooltip[imgObj.current])
+		var div = document.getElementById(imgObj.tooltipid);
+		if(div != null)
+		 div.innerHTML =imgObj.tooltip[imgObj.current];
+	}
+
+	
+	
+// ******** ******** Private functions ********
+	function moveTheShow(curid,newid,leftCss, distance, speed,direction)
+	{
+		curid = document.getElementById(curid);
+		newid = document.getElementById(newid);
+		curid.style.display ="inline-block";
+		newid.style.display ="inline-block";
+		
+		//console.log('start: '+getLeft(curid) + ' ' + getLeft(newid)  );
+		
+		timer_out = false;		
+		moveby();
+		function moveby()
+		{	
+			 if(timer_out)
+				return;			  
+			  else
+			  {		    
+				if(countdistance >= leftCss) 
+				 { 
+					clearInterval(timer);
+					timer_out = true; timer = null;						
+					endSliding();		
+					lazyloadImages();						
+					//console.log(" timer end ");
+					return ;
+				 }			 
+				 countdistance = countdistance + distance ;			 
+				 switch(direction)
+				 {
+					case MOVE.NEXT:	
+						movelistleft(distance);
+						break;
+					case MOVE.PREV:
+						movelistright(distance);
+						break;				 
+				 }			 
+				 timer = setTimeout( function(){ moveby()}, speed);
+			  }	  		  
+		}		
+	}	
+	function movelistleft(distance)
+	{
+	   var li = imgObj.nodeid;	  
+	   for(var k =0; k<imgObj.totalimg; k++)
+	   {   var id = document.getElementById(li+k);           	   
+		   movesubin(id, distance); 
+	   }
+	 
+	}	
+	function movelistright(distance)
+	{
+	   var li = imgObj.nodeid;
+	   for(var k =0; k<imgObj.totalimg; k++)
+	   {   var id = document.getElementById(li+k);
+		   moveaddon(id, distance);  
+	   }
+	  //console.log(" moving right");   
+	}		
+	function moveaddon(id,distance){ id.style.left = getLeft(id) + distance + "px";	}	
+	function movesubin(id,distance){ id.style.left = getLeft(id) - distance + "px";	}	
+	function getLeft(id){  return  parseInt(id.style.left.replace(/px/, ""));}		
+	function getTop(id){  return  parseInt(id.style.top.replace(/px/, ""));}	
+	var keepY ;
+	function slideHandler(event)
+	{
+		if (!event) event = window.event;
+		var touches = (event.changedTouches != undefined)? event.changedTouches: undefined ;
+		var  node = (touches != undefined )? touches[0].target: ((event.target) ? event.target : event.srcElement);
+		var upshot = (event.changedTouches != undefined)? touches[0] : event; 		
+		
+		//console.log(" " + ((event.touches!= undefined)? event.touches.length:-1));	
+		//console.log("distance = " + (keepX - upshot.pageX) ); 
+		switch(event.type)
+		{
+			case "touchstart": 
+			case "mousedown":
+			{ 
+			   keepY = upshot.clientY;
+			   keepX = zoomX = upshot.clientX;
+			   zoomY  = upshot.clientY;
+			   isSliding = !isZoomOut ? true : false;	
+			  // console.log( ' : start '+' zoomX:' + zoomX + ' zoomY=' + zoomY);		
+				break;
+			}	
+			case "touchmove":  
+			case "mousemove":
+			 {			 
+				break; 
+			 }		       
+			case "touchend":  
+			case "touchcancel":
+			case "mouseup":
+			{
+				 if(isZoomOut )
+				 {
+					event.stopPropagation();
+					event.preventDefault();	
+				    imgObj.movetheImage(upshot.clientX, upshot.clientY );
+					cancleTouch();
+					return false;
+				 }				 
+				else if(!isZoomOut && isSliding)
+				 {		
+					event.stopPropagation();
+					event.preventDefault();					 
+					var compdistance = keepX - upshot.pageX;						
+					if(Math.abs(compdistance) >= imgObj.distance) 
+					{
+						event.preventDefault();	
+						cancleTouch();
+						if(compdistance > 0) 
+							imgObj.slidenext(event);
+						else 
+							imgObj.slideprev(event);	
+					   // appendDebug(event.type + " id=" + node.id + '  clientX=' + upshot.clientX 
+					  //+ ' keepX='+keepX + 'distance ' + distance + "</br>") ;					  
+					}
+					return false;					
+				 }				 
+				 return true;				 
+				//console.log(node.id +' ' +event.type +' : end ' + isSliding +' ' +  upshot.clientX);	
+			}
+		}
+		return true;		
+	}
+	function cancleTouch(){isSliding = false; keepX = null; zoomX = null; zoomY= null; }
+	
+	function checkIsSliding()
+	{
+	   //console.log(countdistance + ' ' + timer + ' ' + timer_out); 
+	   if(countdistance!=0 && (timer != null || timer_out == false) )
+	   {	     
+	     var restdistance = imgObj.wd-countdistance;
+		 clearInterval(timer);
+		 timer = null;
+		 timer_out = true;
+		 switch(currentmove)
+	     {
+			case MOVE.NEXT:	
+				movelistleft(restdistance);
+				break;
+			case MOVE.PREV:
+				movelistright(restdistance);
+				break;				 
+	    }
+		endSliding();		
+	  }
+	}
+	
+	function verticalAlign()
+	{	
+	   if(loadimg == imgObj.total) return;
+	   for(var k =imgObj.current; k<loadimg; k++)setAlign(k);
+	}
+	
+	function setAlign(k)
+	{
+		  var id = imgObj.imageid + k;
+	      var img = document.getElementById(id);
+		  var nodeid = document.getElementById(imgObj.nodeid + k);
+		  var ht = img.clientHeight;	
+		  var cal = imgObj.wd/10; //give some top margin to look aligned if could not able to find the image ht.
+		  if(ht !=0 && imgObj.wd > ht)
+			cal =(imgObj.wd - ht)/2 ;
+		if(ht !=0 && imgObj.wd < ht)
+			cal =(ht - imgObj.wd)/2 ;		
+		 nodeid.style.top = cal+'px';
+		 console.log(id + ' img:' + ht +  ' top:' +cal );
+		   
+	}
+	function endSliding()
+	{	   
+	    imgObj.updateTooltip();	
+	    countdistance = 0;
+		currentmove = 0;			
+	}	
+	function imageload(event)
+	{
+	   var image = (event.target) ? event.target : event.srcElement;
+	   var img =document.getElementById(image.id);
+	   var num = image.id.split("-")[1];
+	  // console.log(num + ' ' + image.id +' '+ imgObj.current + ' ' +imgObj.total  + ' complete:' + img.complete);	   
+	   if(img && img.complete != undefined && img.complete)
+		{
+		  setAlign(num );		
+		  removeClass(img, "_spimghide");		  
+		}
+	    return true;		
+	}
+//******** added a zoom feature..	********
+	function loadZoomplugin()
+	{
+		 var zoomleft = imgObj.zoomsize;
+		 var zoomtop = imgObj.zoomsize;
+		 var imgid = null, nodeid = null;
+		 var limitX = 0, limitY=0;
+		 var zoom =	document.getElementById(imgObj.zoomid);
+		 if(zoom != undefined)
+			{
+			   zoom.addEventListener("click", zoomOutImage, false);
+			   for(var i =0; i<imgObj.total;i++)
+			   {
+			     var image =  document.getElementById(imgObj.imageid + i);
+				 image.addEventListener("dblclick", zoomOutImage, false);
+			   }
+			}
+					
+		imgObj.movetheImage = function(X,Y)
+		{
+		   if(imgid != null)
+			{
+			    console.log('X:' +X + ' Y:' + Y );
+			    imgid.style.position ="absolute"; 		
+			    var compX = zoomX - X;
+				var compY = zoomY - Y;								
+				var left = 	getLeft(imgid);
+				var top = getTop(imgid);
+				//console.log("left:" + left + " compX: " + compX+ " limitX:" 
+				 //+ limitX + " top:" + top + " compY: " + compY + " limitY:" + limitY);				
+				 if(Math.abs(compX)  != 0 )//>= zoomleft  ) 
+				 {	
+				   // console.log(left > limitX);
+				 /*  var num = String(left-limitX);
+				     var val = parseInt(num.replace(/-/,""))<=zoomleft ? zoomleft :  parseInt(num.replace(/-/,""));
+					 console.log("left:" + val);
+					 */
+					 var num = parseInt(String(left).replace(/-/,""));
+					// console.log( "leftnum:" + num);
+					 if(compX > 0 && num < limitX)								
+					{
+						   var zoom = (num+zoomleft > limitX) ? num-limitX : zoomleft;
+						   imgid.style.left =( left - zoom) + 'px';
+					}
+					else if(num > 0)
+					{
+					 var zoom = (num-zoomleft < 0) ? num : zoomleft;
+						imgid.style.left =(left  + zoom) + 'px'
+					}
+						
+					/*if(compX > 0 && left > limitX)								
+						imgid.style.left =( left - zoomtop) + 'px';
+					else if(left <0 && left>= limitX)
+						imgid.style.left =(left  + zoomtop) + 'px';	
+				*/						
+				}				
+				if(Math.abs(compY)  !=0 )// >= zoomtop  ) 
+				{	
+				  /*  var num = String(top-limitY);
+				     var val = parseInt(num.replace(/-/,""))<=zoomtop ? zoomtop :  parseInt(num.replace(/-/,""));*/
+					 
+					 var num = parseInt(String(top).replace(/-/,""));
+					 //console.log( "topnum:" + num);
+					 if(compY > 0 && num <limitY)								
+					{
+					   var zoom = (num+zoomtop > limitY) ? num-limitY : zoomtop;
+					   imgid.style.top =( top - zoom) + 'px';
+					}
+					else if(num>0)
+					{
+					    var zoom = (num-zoomtop <= 0) ? num : zoomtop;
+						imgid.style.top =(top  + zoom) + 'px'
+					}
+					
+					/*if(compY > 0  && top > limitY) 											
+						imgid.style.top =( top - zoomtop) + 'px';
+					else if(top <0 && top >= limitY)
+						imgid.style.top =( top + zoomtop) + 'px';*/				   				  
+				}				
+			}
+			
+		}
+	function zoomOutImage (event)
+		{
+		
+		    //console.log(event.target);
+			isZoomOut = (isZoomOut) ? false : true;
+			imgid = document.getElementById(imgObj.imageid + imgObj.current);
+			nodeid = document.getElementById(imgObj.nodeid + imgObj.current);
+			imgid.style.top ="0px";
+			imgid.style.left ="0px";
+			if(isZoomOut)
+			{
+				var image = (event.target) ? event.target : event.srcElement;	
+				//console.log(image.id +' '+ imgObj.current + ' ' +imgObj.total);							
+				//nodeid.style.overflow ='hidden';
+				nodeid.style.top ="0px";				
+				imgid.style.width = 'auto';
+				imgid.style.height = 'auto';				
+				var imgwd = imgid.clientWidth ;
+				var imght = imgid.clientHeight;
+				//console.log("img wd : "+ imgwd + " ht:" + imght);				
+				var reminder = imgwd % imgObj.zoomsize;
+				if(reminder >0)
+				  imgwd = imgwd-reminder;
+				reminder = imght % imgObj.zoomsize;
+				if(reminder >0)
+				  imght = imght-reminder;				  
+				//console.log("img wd : "+ imgwd + " ht:" + imght);	
+				imgid.style.width = imgwd+ "px" ;
+				imgid.style.height = imght +"px";
+				limitX= imgwd - imgObj.wd ; 
+				limitY =imght - ((imgObj.ht==0)?imgObj.wd:imgObj.ht ); 	
+				//imgid.style.width = imgwd+'px';
+				//imgid.style.height = imght + 'px';
+				if(limitX < zoomleft)
+				 zoomleft = limitX;
+				if(limitY < zoomtop)
+                 zoomtop = limitY;									 
+				//console.log("zoomleft: "+ zoomleft + " zoomtop:" + zoomtop);	
+				zoom.className = "_spzoomin";
+			}
+			else
+			{
+			   if(imgObj.imgfittoalbum)
+				{
+				  imgid.style.width = imgObj.wd + 'px' ;
+				  imgid.style.height = (imgObj.ht==0)?'inherit': imgObj.ht+ 'px';
+				}
+                else
+				{
+				   imgid.style.width = 'inherit';
+				   imgid.style.height = (imgObj.ht==0)?'inherit': imgObj.ht+ 'px';
+				}				
+				imgid.style.position =""; 	
+				zoom.className = "_spzoomout";	
+				setAlign(imgObj.current);				
+			}
+			hideAndshow();		
+					
+		}
+	}
+	
+	function setOrientation(callback){
+		var supportsOrientationChange = "onorientationchange" in window,
+		    orientationEvent = supportsOrientationChange ? "orientationchange" : "resize";
+		
+	setOrientation.check = function (){	if (window.orientation == 0 || window.orientation == 180 )
+	{
+				callback(MODE.POTRAIT); //app is vertical
+			}else{				
+				callback(MODE.LANDSCAPE);//app is horizontal
+			}	}		
+        setOrientation.check();		
+		window.addEventListener(orientationEvent, setOrientation.check, false);	
+}	
+
+return imgObj;
+
+}
+
+/*
+* Helper functions ... for building the html tag.
+*/
+
+//Remove it later ..no use!![ for debuging ]
+function appendDebug(text){ document.getElementById('debug').innerHTML = document.getElementById('debug').innerHTML + text ;}
+function updateDebug(text){ document.getElementById('debug').innerHTML = text ;}
+//------------------------------------------------------------------------------------
+ 
+
+ 
+ function getHtcss(ht, wd) 
+ {  
+   if ( ht == 0)
+		return  "height:100%;";
+	else return "height:" + ht + 'px;';	
+ }
+ 
+ 
+//list func..
+function getul(ht , wd )
+{ 
+	var ul = document.createElement("ul");
+	var style =  "position:relative;padding:0px;margin:0px;list-style:none;height:"+ ((ht==0)?wd:ht) + 'px;';
+	ul.setAttribute("style", style);
+	return ul;
+}
+function getLiNode(id, wd, ht,lf,func , st , cls)
+{
+    //var disp = (i!=imgObj.start)?"display:none;" :"";
+	//var lf = (i*wd);
+	var left = "left:"+ ((lf!=0)?lf :lf )+ ";";				
+	var li = document.createElement("li"); 	
+//"position:absolute;text-align:center;float:left;width:" 'vertical-align:middle;'	
+	var listyle = left  +  
+				"width:"+wd + 'px;'+  st  ; 
+	//console.log("listyle :"+	listyle );		
+				//line-height:'+ wd + 'px;'+ st; //+getHtcss(ht) ; 				
+	li.setAttribute("style", listyle);
+	if(cls != undefined)
+		li.setAttribute("class", cls);
+	li.setAttribute("id" , id);				
+	li.addEventListener("mousedown", func, false);
+	li.addEventListener("mousemove", func, false);
+	li.addEventListener("mouseup", func, false);			
+	li.addEventListener("touchstart", func, false);
+	li.addEventListener("touchmove", func, false);
+	li.addEventListener("touchend", func, false);
+	li.addEventListener("touchcancel", func, false);	
+	return li;				
+}
+function getImageNode(id, src , style)
+{
+	var image = document.createElement("img");  
+    image.setAttribute("src", src);	
+    image.setAttribute("alt", "loading...");	
+	image.setAttribute("style", "border:0;margin:0;padding:0;width:auto;" + style);
+	image.setAttribute("id", id);
+	return image;
+}
+//table func..
+function gettr(id, wd, ht)
+{
+	 var tr = document.createElement("tr");
+	 if(id != undefined)
+	   tr.setAttribute("id", id);  
+	  wd = (wd != undefined)?wd : "100%";
+	  ht = (ht != undefined)?ht : "100%";
+	  tr.setAttribute("width", wd);	
+	  tr.setAttribute("height",ht);
+	  tr.setAttribute("valign" , "center");
+	 return tr;
+}
+function gettable(wd, ht) 
+{
+ var table = document.createElement("table"); 
+ table.setAttribute("width", wd );
+ if(ht != undefined)
+	table.setAttribute("height", ht );
+ table.setAttribute("cellspacing" ,"0");
+ table.setAttribute("cellpadding" ,"0");
+ table.setAttribute("border" ,"0");
+ table.setAttribute("align", "center");
+ table.setAttribute("valign" , "center");
+ return table;
+}
+function gettd(id, wd , ht, align)
+{
+	  var td = document.createElement("td");
+	  wd = (wd != undefined)?wd : "100%";
+	  ht = (ht != undefined)?ht : "100%";
+	  if(id != undefined)
+		 td.setAttribute("id", id);	  
+	  td.setAttribute("width", wd);	
+	  td.setAttribute("height",ht);
+	  if(align != undefined)
+		 td.setAttribute("align", align);
+	td.setAttribute("valign" , "center");		 
+	return td;
+}
+function addTooltipRow(id, tipcls, text)
+ {
+    var table = gettable("100%");
+	var tr = gettr();
+	var td = gettd();
+	var div = document.createElement("div");
+	div.setAttribute("id", id );
+	div.setAttribute("class", tipcls );
+	div.innerHTML = text;		
+	td.appendChild(div);
+	tr.appendChild(td);
+	
+	table.setAttribute("cellspacing" ,"0");
+    table.setAttribute("cellpadding" ,"0");
+    table.setAttribute("border" ,"0");
+	table.appendChild(tr);
+	return table;
+}
+function addZoomRow(id, imgurl,clipx, clipy , cls) //add image as bg ..
+ {
+   // var table = gettable("100%");
+	//var tr = gettr();
+	//var td = gettd();
+	var div = document.createElement("div");
+	div.setAttribute("id", id );
+	
+	
+	div.setAttribute("style", "display:inline-block;margin:10px;text-align:center;width:"+ clipx + "px;" + "height:"
+	+ clipy + 'px;');
+	//+getBGImgCss(POS.MIDDLE, imgurl,0, 0));
+	div.setAttribute("class" , cls);
+	
+	//div.setAttribute("class", tipcls );
+	//div.innerHTML = text;		
+	//td.appendChild(div);
+	//tr.appendChild(td);
+	
+	//table.setAttribute("cellspacing" ,"0");
+    //table.setAttribute("cellpadding" ,"0");
+    //table.setAttribute("border" ,"0");
+	//table.appendChild(tr);
+	return div;
+}
+function getdiv(id, style, klass)
+{
+	 var div = document.createElement("div");
+	 if(id != undefined)
+		div.setAttribute("id", id);
+	 if(style != undefined)
+		div.setAttribute("style", style);	
+	 if(klass != undefined)
+		div.setAttribute("class", klass);	 
+	  return div;
+}
+
+ function getMoveButton(imgObj , pos)
+{
+		var ht = (imgObj.ht==0?imgObj.wd:imgObj.ht);
+		var commonstyle ="position:absolute;float:left;display:inline-block;width:" + imgObj.prevnextimgwd 
+			+ "px;height:" + ht + "px;"   ;	
+		var anchorstyle  = "display:block;height:" + imgObj.prevnextimgwd + "px;margin-top:" ;
+		
+		if(imgObj.prevnextpos == POS.MIDDLE)
+			anchorstyle  = anchorstyle + ((parseInt(ht)/2) - parseInt( (imgObj.prevnextimgwd )/2) ) + "px;";
+		else if(imgObj.prevnextpos == POS.BOTTOM)
+			anchorstyle  = anchorstyle + (parseInt(ht)- parseInt( (imgObj.prevnextimgwd )/2)) + "px;";
+		else anchorstyle  = anchorstyle + parseInt( (imgObj.prevnextimgwd )/2) + "px;";	
+		
+		var func = null; var id='' ;
+		if(pos == MOVE.PREV)
+		{
+			commonstyle = commonstyle +'z-index:2;left:0px;';
+			anchorstyle = anchorstyle + getBGImgCss(imgObj.prevnextpos,imgObj.previmg,imgObj.prevnextimgwd );
+			func = imgObj.slideprev;
+			id = imgObj.previd ;
+		}
+		else if(pos == MOVE.NEXT)
+		{
+			commonstyle = commonstyle +'z-index:0;left:'+ ((imgObj.wd-imgObj.prevnextimgwd)) +'px;';
+			anchorstyle = anchorstyle + getBGImgCss(imgObj.prevnextpos,imgObj.nextimg,imgObj.prevnextimgwd );
+			func = imgObj.slidenext;
+			id = imgObj.nextid;
+		}
+		 
+		var div = getdiv(id, commonstyle ) ;			
+		var a = document.createElement("a");
+		a.setAttribute("style" , anchorstyle);			
+		a.addEventListener("click", func, false);
+		div.appendChild(a);			
+		
+		return div;
+		
+ }
+ function getBGImgCss(pos, url, wd , posx, posy )
+ {
+    var bg = " background-image:url('" +  url+ "');background-repeat:no-repeat;";
+	if(wd != 0 )
+	 bg= bg+"background-size:" + wd + 'px;' ;
+	 
+	 bg = bg +  " background-position: ";
+	if(posx != undefined)
+	{
+		bg = bg + posx +'px ';
+		if(posy != undefined)
+			bg = bg+ posy + 'px'
+		bg = bg  + ';';	
+	}
+	else
+	{
+		 switch(pos)
+		 {	 
+		   case POS.TOP:  // top	       
+				  bg = bg+" top;";		 
+					
+		   case POS.BOTTOM: //bottom	       
+				 bg = bg+ " bottom;";
+				
+			case POS.MIDDLE:
+			default : //center 		
+				bg = bg+ "center;";
+				
+		 }
+	 }
+	 
+	 return   bg;
+ }
+ 
+ function hasClass(ele,cls) {
+	return ele.className.match(new RegExp('(\\s|^)'+cls+'(\\s|$)'));
+}
+function addClass(ele,cls) {
+	if (!this.hasClass(ele,cls)) ele.className += " "+cls;
+}
+function removeClass(ele,cls) {
+	if (hasClass(ele,cls)) {
+		var reg = new RegExp('(\\s|^)'+cls+'(\\s|$)');
+		ele.className=ele.className.replace(reg,' ');
+	}
+}
+
+function removeAllLiClass(tot, li, cls)
+{
+   for(var k =0; k<tot; k++)
+	   {   var id = document.getElementById(li+k);	     
+		   	 removeClass(id,cls) ;  
+	   }
+}
+ 
+
+
+	  
+		
+
